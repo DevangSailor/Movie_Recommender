@@ -1,0 +1,185 @@
+# Schema definition for Movie Knowledge Graph
+# Based on TMDB movie data with Wikipedia plot enrichment
+
+# --- Node Types ---
+node_types:
+  - Movie      # Main movie entities with metadata and plot information
+  - Person     # Actors and directors (role determined by relationship type)
+  - Genre      # Movie genres (e.g., Comedy, Drama, Action)
+  - Keyword    # Descriptive keywords for movies
+  - Language   # Languages associated with movies
+
+# --- Relationship Types ---
+relationship_types:
+  - DIRECTED_BY      # Movie -> Person (director relationship)
+  - HAS_CAST_MEMBER  # Movie -> Person (actor relationship)
+  - HAS_GENRE        # Movie -> Genre
+  - HAS_KEYWORD      # Movie -> Keyword
+  - HAS_LANGUAGE     # Movie -> Language
+
+# --- Node Properties ---
+properties:
+  nodes:
+    Movie:
+      required:
+        - tmdb_id           # TMDB unique identifier (primary key)
+        - title             # Movie title
+      optional:
+        - original_title    # Original title (if different from localized)
+        - overview          # Short plot summary from TMDB
+        - release_date      # Release date (YYYY-MM-DD format)
+        - year              # Release year (integer)
+        - runtime           # Runtime in minutes
+        - vote_average      # Average rating (0-10 scale)
+        - vote_count        # Number of votes
+        - popularity        # Popularity score
+        - budget            # Production budget in USD
+        - revenue           # Box office revenue in USD
+        - language          # Primary language
+        - tagline           # Movie tagline
+        - homepage          # Official website URL
+        - imdb_id           # IMDB identifier (e.g., tt0113101)
+        - wikipedia_plot    # Extended plot from Wikipedia
+        - combined_plot     # Combined overview + wikipedia_plot
+        - embedding         # Vector embedding (768 dimensions, nomic-embed-text)
+    
+    Person:
+      required:
+        - name              # Person's full name (primary key)
+      optional:
+        - tmdb_id           # TMDB person ID if available
+    
+    Genre:
+      required:
+        - name              # Genre name (primary key, e.g., "Comedy")
+    
+    Keyword:
+      required:
+        - name              # Keyword text (primary key, e.g., "hotel")
+    
+    Language:
+      required:
+        - code              # ISO 639-1 language code (primary key, e.g., "en")
+        - name              # Full language name (e.g., "English")
+
+# --- Relationship Properties ---
+  relationships:
+    DIRECTED_BY:
+      from: Movie
+      to: Person
+      unique: true          # One relationship per movie-director pair
+      properties: []        # No additional properties
+    
+    HAS_CAST_MEMBER:
+      from: Movie
+      to: Person
+      unique: true          # One relationship per movie-actor pair
+      properties:
+        - character         # Character name (optional)
+        - order             # Cast order/billing (optional)
+    
+    HAS_GENRE:
+      from: Movie
+      to: Genre
+      unique: true
+      properties: []
+    
+    HAS_KEYWORD:
+      from: Movie
+      to: Keyword
+      unique: true
+      properties: []
+    
+    HAS_LANGUAGE:
+      from: Movie
+      to: Language
+      unique: true
+      properties:
+        - type              # "original" or "spoken" (optional)
+
+# --- Indexes and Constraints ---
+indexes:
+  unique_constraints:
+    - node: Movie
+      property: tmdb_id
+    - node: Person
+      property: name
+    - node: Genre
+      property: name
+    - node: Keyword
+      property: name
+    - node: Language
+      property: code
+  
+  vector_indexes:
+    - name: movie_embedding
+      node: Movie
+      property: embedding
+      dimensions: 768
+      similarity_function: cosine
+
+# --- Embedding Configuration ---
+embedding:
+  model: nomic-embed-text
+  dimensions: 768
+  target_nodes:
+    - Movie                 # Only Movie nodes get embeddings
+  text_fields:
+    Movie:
+      - wikipedia_plot      # Primary field for embedding
+      - overview            # Secondary field (fallback or combination)
+  combination_strategy: concatenate  # How to combine fields: "concatenate" or "first_available"
+
+# --- Example Data Structure ---
+example:
+  nodes:
+    movies:
+      - tmdb_id: 5
+        title: "Four Rooms"
+        year: 1995
+        runtime: 98
+        budget: 4000000
+        revenue: 4257354
+        language: "English"
+        tagline: "Twelve outrageous guests..."
+        imdb_id: "tt0113101"
+        overview: "It's Ted the Bellhop's first night on the job..."
+        wikipedia_plot: "The film follows Ted, a bellhop..."
+        embedding: [0.123, 0.456, ...]  # 768-dimensional vector
+    
+    persons:
+      - name: "Robert Rodriguez"
+      - name: "Tim Roth"
+      - name: "Jennifer Beals"
+      - name: "Antonio Banderas"
+    
+    genres:
+      - name: "Comedy"
+    
+    keywords:
+      - name: "hotel"
+      - name: "new year's eve"
+    
+    languages:
+      - code: "en"
+        name: "English"
+  
+  relationships:
+    - type: DIRECTED_BY
+      from_id: 5              # Movie tmdb_id
+      to_name: "Robert Rodriguez"
+    - type: HAS_CAST_MEMBER
+      from_id: 5
+      to_name: "Tim Roth"
+      properties:
+        character: "Ted the Bellhop"
+        order: 1
+    - type: HAS_GENRE
+      from_id: 5
+      to_name: "Comedy"
+    - type: HAS_KEYWORD
+      from_id: 5
+      to_name: "hotel"
+    - type: HAS_LANGUAGE
+      from_id: 5
+      to_code: "en"
