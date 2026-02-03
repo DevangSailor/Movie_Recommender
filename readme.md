@@ -266,7 +266,7 @@ ollama list
 docker ps
 
 # View Neo4j logs
-docker logs fusion_knowledge_graph
+docker logs knowledge_graph
 
 # Access Neo4j browser
 open http://localhost:7474
